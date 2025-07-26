@@ -88,3 +88,57 @@ curl.exe -X POST "http://localhost:8000/signup" `
 -H "Content-Type: application/json" `
 -d '{"username":"testuser","email":"test@example.com","password":"meropass","role":"user"}'
 ```
+OR
+```ps1
+# Creating user
+Invoke-RestMethod -Uri "http://localhost:8000/signup" `
+  -Method POST `
+  -ContentType "application/json" `
+  -Body (@{
+      username = "testuser"
+      email = "test@example.com"
+      password = "meropass"
+      role = "user"
+  } | ConvertTo-Json)
+```
+- Creating token for the ``testuser``
+```ps1
+Invoke-RestMethod -Uri "http://localhost:8000/token" `
+  -Method POST `
+  -ContentType "application/x-www-form-urlencoded" `
+  -Body @{
+      username = "testuser"
+      password = "meropass"
+  }
+```
+OR Using the python script to generate the token 
+    - I have created ``create-token.py`` to generate it 
+
+- Creating Rooms
+```ps1
+$token = "<just put your token here"
+$headers = @{
+    Authorization = "Bearer $token"
+    "Content-Type" = "application/json"
+}
+$body = @{
+    name = "Test Room"
+} | ConvertTo-Json -Depth 2
+$response = Invoke-RestMethod -Uri "http://localhost:8001/rooms" -Method POST -Headers $headers -Body $body
+$response
+```
+
+- Checking via Postgres CLI
+```bash
+psql -U postgres 
+\list
+# lists the databases
+\c chatdb
+# Selects the database chatdb
+\dt
+# Lists the table and it's name 
+SELECT * FROM users;
+```
+
+
+

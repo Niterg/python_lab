@@ -7,8 +7,10 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from app import models, schemas, dependencies
 from app.dependencies import engine, Base
-from app.models import User
+from app.models import User, hash_password
+from app.schemas import UserCreate
 import os
+import requests
 
 # Initialize FastAPI
 app = FastAPI()
@@ -74,19 +76,39 @@ def RoleChecker(allowed_roles: list):
         return user
     return checker
 
+CHAT_SERVICE_URL = "http://localhost:8001/internal/create_user" 
+
+def sync_user_to_chat(username: str):
+    try:
+        response = requests.post(CHAT_SERVICE_URL, json={"username": username})
+        response.raise_for_status()
+    except Exception as e:
+        print(f"[WARN] Failed to sync user to chat service: {e}")
+
 # Routes
-@app.post("/signup", response_model=schemas.User)
-def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    db_user = models.User(
+@app.post("/signup")
+def signup(user: UserCreate, db: Session = Depends(get_db)):
+    # Check if user with email already exists
+    existing_user = db.query(User).filter(User.email == user.email).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+    
+    # If not exist, create user
+    new_user = User(
         username=user.username,
         email=user.email,
-        hashed_password=get_password_hash(user.password),
-        role=user.role
+        hashed_password=hash_password(user.password),
+        role=user.role,
+        disabled=False,
     )
-    db.add(db_user)
+    db.add(new_user)
     db.commit()
-    db.refresh(db_user)
-    return db_user
+    db.refresh(new_user)
+    sync_user_to_chat(user.username)
+    return new_user
 
 @app.post("/token")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):

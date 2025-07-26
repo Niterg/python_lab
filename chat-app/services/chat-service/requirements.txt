@@ -6,3 +6,4 @@ python-jose
 websockets
 passlib 
 sqladmin
+python-jose
