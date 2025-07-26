@@ -7,6 +7,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from app import models, schemas, dependencies
 from app.dependencies import engine, Base
+from app.models import User
 import os
 
 # Initialize FastAPI
@@ -47,6 +48,31 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+# RBAC
+def RoleChecker(allowed_roles: list):
+    async def checker(
+        token: str = Depends(oauth2_scheme),
+        db: Session = Depends(get_db)
+    ):
+        credentials_exception = HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions"
+        )
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            username: str = payload.get("sub")
+            role: str = payload.get("role")
+            if role not in allowed_roles:
+                raise credentials_exception
+        except JWTError:
+            raise credentials_exception
+        
+        user = db.query(User).filter(User.username == username).first()
+        if user is None:
+            raise credentials_exception
+        return user
+    return checker
 
 # Routes
 @app.post("/signup", response_model=schemas.User)

@@ -5,3 +5,4 @@ psycopg2
 python-jose
 websockets
 passlib 
+sqladmin
