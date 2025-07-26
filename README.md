@@ -7,8 +7,15 @@ The applications can be found in a ``Dockerfile``
 Installation of dependencies with packages
 ```bash
 # Creats a virtual environment 
-python3 -m venv venv
+# python3 -m venv venv
+mkdir chat-app/services
+cd chat-app/services
+
+# Creating separate venv for auth and chat for microservices
+python -m venv auth-venv
+python -m venv chat-venv
 ```
+
 Additional packages are installed inside ``requirements.txt`` using 
 ``pip freeze > requirements.txt``
 
@@ -37,3 +44,47 @@ exit()
 set SECRET_KEY="NyDc4fb1c5EXYe5jY6fozs8qcnMb3R8_wK_C7DYaQvA"
 ```
 
+Executing these microservices separately 
+
+### For ``auth-service``
+```ps1
+# In Windows
+# Disables Scripts Restiction temporarily
+Set-ExecutionPolicy Unrestricted -Scope Process
+cd auth-service
+auth-venv\Scripts\activate
+pip install -r requirements.txt
+
+# Initializing databse 
+python -c "from app.dependencies import Base, engine; Base.metadata.create_all(bind=engine)"
+
+# Running the service in port 8000 using uvicorn
+uvicorn app.main:app --reload --port 8000
+```
+### For ``chat-service``
+```ps1
+# In another terminal of Windows
+Set-ExecutionPolicy Unrestricted -Scope Process
+cd chat-service
+chat-venv\Scripts\activate
+pip install -r requirements.txt
+
+# Initializing databse 
+python -c "from app.dependencies import Base, engine; Base.metadata.create_all(bind=engine)"
+
+# Running the service in port 8001 using uvicorn
+uvicorn app.main:app --reload --port 8001
+```
+
+### Testing
+To use ``curl`` command install the package using ``winget``
+- In Windows (using backtick for lie break) `` ` ``
+- In Linus use backslash ``\``
+```ps1
+winget install curl.curl
+
+# Testing by inserting test data
+curl.exe -X POST "http://localhost:8000/signup" `
+-H "Content-Type: application/json" `
+-d '{"username":"testuser","email":"test@example.com","password":"meropass","role":"user"}'
+```
