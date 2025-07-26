@@ -1,7 +1,8 @@
-$uri = "ws://localhost:8001/ws/123?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdXNlciIsInJvbGUiOiJ1c2VyIiwiZXhwIjoxNzUzNTQ0MDMyfQ.u_8LnqPmXWtoaP0_0m3YSpORz59bvyBgVaGllJR4v-w"
+$uri = "ws://localhost:8001/ws/jwt-token"
 
 $client = [System.Net.WebSockets.ClientWebSocket]::new()
 
+# These were generated using Github Copilot
 try {
     Write-Host "Connecting to $uri ..."
     $client.ConnectAsync([Uri]$uri, [Threading.CancellationToken]::None).Wait()
