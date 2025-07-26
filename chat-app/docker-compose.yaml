@@ -1,0 +1,35 @@
+version : '3.6'
+
+services: 
+  postgres:
+    image: postgres:17
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: pythonlab
+      POSTGRES_DB: chatdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    network:
+      - python-lab
+  authentication:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+      container-name: authentication 
+      ports:
+      - "1000:1000"
+      network:
+      - python-lab
+      depends_on:
+        - postgres
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  python-lab:
+    driver: bridge
