@@ -1,15 +1,16 @@
 from datetime import datetime
+import json
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, Query
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from app import models, manager
 from sqlalchemy.orm import Session, joinedload
 from app.dependencies import get_db, engine, Base
-from app.models import Message, Room, User
+from app.models import Message, Room
 from app.admin import setup_admin
 from typing import List, Optional
 from pydantic import BaseModel
-from jose import jwt, ExpiredSignatureError
+from jose import jwt, ExpiredSignatureError, JWTError
 import os
 
 app = FastAPI()
@@ -35,19 +36,6 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         print("JWT ERROR:", e)
         raise HTTPException(status_code=400, detail="Invalid token")
 
-# Fetches the users of auth-service
-@app.post("/internal/create_user")
-def create_user_sync(payload: dict, db: Session = Depends(get_db)):
-    username = payload.get("username")
-    if not username:
-        raise HTTPException(status_code=400, detail="Username is required")
-
-    user = db.query(User).filter_by(username=username).first()
-    if not user:
-        new_user = User(username=username)
-        db.add(new_user)
-        db.commit()
-    return {"message": f"user '{username}' synced successfully"}
 
 class RoomCreate(BaseModel):
     name: str
@@ -93,69 +81,83 @@ async def websocket_endpoint(
     db: Session = Depends(get_db)
 ):
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[HS256])
-        username = payload.get("sub")
-        await websocket.accept()
+        # Validate token first
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        user_id: int = payload.get("user_id")
         if not username:
-            await websocket.close(code=1008)
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
-    except JWTError as e:
-        await websocket.close(code=4403, reason="Invalid token")
-        return
-    except Exception as e:
-        await websocket.close(code=1011, reason="Internal error")
 
-    except ExpiredSignatureError:
-        await websocket.close(code=4401, reason="Token expired")
+        # Check room exists
+        room = db.query(Room).filter(Room.id == room_id).first()
+        if not room:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
 
-    user = db.query(User).filter(User.username == username).first()
-    if not user:
-        await websocket.close(code=1008)
-        return
+        # Accept the connection 
+        await websocket.accept()
+        
+        await connection_manager.connect(websocket, room_id)
 
-    # Optional: check if room exists
-    room = db.query(Room).filter(Room.id == room_id).first()
-    if not room:
-        await websocket.close(code=1008)
-        return
+        messages = (
+            db.query(Message)
+            .filter(Message.room_id == room_id)
+            .order_by(Message.timestamp.asc())
+            .limit(50)
+            .all()
+        )
 
-    await connection_manager.connect(websocket, room_id)
-    try:
-        messages = db.query(Message).filter(Message.room_id == room_id).order_by(Message.timestamp.desc()).limit(50).all()
         for msg in reversed(messages):
             await websocket.send_json({
+                "type": "chat_message",
                 "content": msg.content,
-                "username": username,  # or msg.user.username if relationship loaded
+                "username": msg.username,
                 "timestamp": msg.timestamp.isoformat()
             })
 
         while True:
             data = await websocket.receive_text()
-            db_message = Message(
-                content=data,
-                room_id=room_id,
-                user_id=user.id,
-                timestamp=datetime.utcnow()
-            )
-            db.add(db_message)
-            db.commit()
-            await connection_manager.broadcast({
-                "content": data,
-                "username": username,
-                "timestamp": db_message.timestamp.isoformat()
-            }, room_id)
-    except WebSocketDisconnect:
+            try:
+                message_data = json.loads(data)
+                if message_data.get("type") != "chat_message":
+                    continue
+
+                db_message = Message(
+                    content=message_data["content"],
+                    room_id=room_id,
+                    user_id=user_id,
+                    username=username,
+                    timestamp=datetime.utcnow()
+                )
+                db.add(db_message)
+                db.commit()
+
+                await connection_manager.broadcast({
+                    "type": "chat_message",
+                    "content": message_data["content"],
+                    "username": username,
+                    "timestamp": db_message.timestamp.isoformat()
+                }, room_id)
+
+            except json.JSONDecodeError:
+                await websocket.send_json({"error": "Invalid message format"})
+            except KeyError:
+                await websocket.send_json({"error": "Missing required fields"})
+
+    except Exception as e:
+        print(f"WebSocket error: {str(e)}")
+        try:
+            await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+        except:
+            pass
         connection_manager.disconnect(websocket, room_id)
-    
-    # Accepts Websocket Connection
-    await websocket.accept()
 
 @app.on_event("startup")
 async def startup():
     # Create tables in proper order
     Base.metadata.create_all(bind=engine, tables=[
         Room.__table__,  
-        User.__table__,
         Message.__table__
     ])
 

@@ -107,7 +107,7 @@ def signup(user: UserCreate, db: Session = Depends(get_db)):
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    sync_user_to_chat(user.username)
+    # sync_user_to_chat(user.username)
     return new_user
 
 @app.post("/token")

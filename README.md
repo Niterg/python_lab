@@ -116,7 +116,7 @@ OR Using the python script to generate the token
 
 - Creating Rooms
 ```ps1
-$token = "<just put your token here"
+$token = "<just put your token here>"
 $headers = @{
     Authorization = "Bearer $token"
     "Content-Type" = "application/json"
@@ -137,8 +137,50 @@ psql -U postgres
 # Selects the database chatdb
 \dt
 # Lists the table and it's name 
-SELECT * FROM users;
+SELECT * FROM auth.users;
+```
+- Checking connection to websocket in browser console 
+```js
+const roomId = 1;
+const token = "jwt-token"
+const ws = new WebSocket(`ws://localhost:8001/ws/${roomId}?token=${token}`);
+ws.onopen = () => {
+  console.log('Connected');
+  ws.send('Hello world!');
+};
+ws.onmessage = (e) => {
+  console.log('Message:', JSON.parse(e.data));
+};
+
+ws.onopen = function() {
+  console.log("Connected to chat room", roomId);
+  setTimeout(() => {
+    ws.send(JSON.stringify({
+      type: "chat_message",
+      content: "Hello everyone!"
+    }));
+  }, 1000);
+};
+
+// function to see text messages
+function sendTestMessage() {
+  const testMsg = {
+    type: "chat_message",
+    content: `Test at ${new Date().toLocaleTimeString()}`
+  };
+  ws.send(JSON.stringify(testMsg));
+  console.log('[SENT]', testMsg);
+}
+sendTestMessage();
 ```
 
+- Checking messages in Postgres
+```ps1
+\c chatdb
+SELECT * FROM chat.messages WHERE room_id = 1;
+ id |     content     |         timestamp          | room_id | user_id | username
+----+-----------------+----------------------------+---------+---------+----------
+  1 | Hello everyone! | 2025-07-26 16:33:46.323961 |       1 |         | testuser
+```
 
 
