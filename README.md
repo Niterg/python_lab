@@ -78,7 +78,7 @@ uvicorn app.main:app --reload --port 8001
 
 ### Testing
 To use ``curl`` command install the package using ``winget``
-- In Windows (using backtick for lie break) `` ` ``
+- In Windows (using backtick for line break) `` ` ``
 - In Linus use backslash ``\``
 ```ps1
 winget install curl.curl
