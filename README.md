@@ -1,6 +1,6 @@
 # Python Lab
 
-The created application supports microservices architecture which helps in scaling the application in a large containerized deployment
+The created application supports microservices architecture which helps in scaling the application in a large containerized deployment.
 The applications can be found in a ``Dockerfile``
 
 ### 1. Chat application 
@@ -19,7 +19,7 @@ python -m venv chat-venv
 Additional packages are installed inside ``requirements.txt`` using 
 ``pip freeze > requirements.txt``
 
-``psycopg2`` reuires installation of ``C++ build tools`` from ``Microsoft Visual Studio`` 
+``psycopg2`` requires installation of ``C++ build tools`` from ``Microsoft Visual Studio`` 
 
 > ### Connecting to Postgres:
 ```bash
